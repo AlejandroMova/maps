@@ -7,14 +7,9 @@ from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
 import csv
-import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
 
-app = FastAPI()
 
 driver = webdriver.Chrome()
-
 
 
 def wait_for_element(time, by, key): 
@@ -43,9 +38,11 @@ def searchbar(search):
     searchbar.send_keys(search)
     searchbar.send_keys(Keys.RETURN)
 
-def get_places(query):
+def get_places(query, max_returns):
     # get the google maps places, returned in a dict with key name and value list of attributes
     
+    print('Searching:', query)
+
     driver.get('https://www.google.com/maps/')
     # query is what to search for
     places = []
@@ -55,14 +52,18 @@ def get_places(query):
         searchbar(query)
         # wait for cards to appear
         wait_for_element(10, By.CLASS_NAME, "hfpxzc")
+        
 
+        cards = []
         # scroll to generate more responses
-        for i in range(5): 
+        while (len(cards) < max_returns): 
             scroll_down(10000)
-            time.sleep(1)
+            time.sleep(1.5)
+            cards = (driver.find_elements(By.CLASS_NAME, "hfpxzc"))
 
+        cards = cards[:max_returns]
         # get the google maps responses
-        cards = (driver.find_elements(By.CLASS_NAME, "hfpxzc"))
+        print(len(cards))
         names = []
         links = []
         for card in cards:
@@ -71,7 +72,8 @@ def get_places(query):
         for i in range(len(links)):
             # get information of each card
 
-            if i > 3: 
+            # to limit the amount of places
+            if i > max_returns: 
                 break
             # open new window
             try: 
@@ -94,17 +96,14 @@ def get_places(query):
     return places
 
 
-@app.get('/{query}')
-def get_query(query: str): 
-    # to run the program
+def into_csv(places, file_name): 
+    # Put into csv
     
-    print('Searching ', query)
     titles = ["name", "link", "location", "closes"]
-
-    places = get_places(query)
-
     
-    with open(f'{query}.csv', 'w', encoding='UTF-8') as f: 
+    
+    path = input("Input path of file: ")
+    with open(path, 'w', encoding='UTF-8') as f: 
         writer = csv.DictWriter(f, fieldnames=titles)
         writer.writeheader()
         
@@ -114,9 +113,10 @@ def get_query(query: str):
             except UnicodeEncodeError as e: 
                 print('Character not recognized')
                 continue
+        print('Added to csv: ', file_name, '.csv')
     
-    return FileResponse(f'{query}.csv')
 
-if __name__ == "__main__": 
-    uvicorn.run(app, port=8000, host="0.0.0.0")
-
+query = input("What would you like to search for? ")
+max_returns = int(input("How many? "))
+places = get_places(query, max_returns)
+into_csv(places, query)
